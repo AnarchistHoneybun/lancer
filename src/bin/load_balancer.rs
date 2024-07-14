@@ -129,8 +129,7 @@ fn handle_connection(
 
     match server {
         Some(server_addr) => {
-            let mut pool = pool.lock().unwrap();
-            let mut server_stream = pool.get_connection(&server_addr)?;
+            let mut server_stream = pool.lock().unwrap().get_connection(&server_addr)?;
 
             server_stream.set_write_timeout(Some(Duration::from_secs(5)))?;
             server_stream.write_all(&buffer[..bytes_read])?;
@@ -148,7 +147,7 @@ fn handle_connection(
             client_stream.flush()?;
 
             // Release the connection back to the pool
-            pool.release_connection(&server_addr, server_stream);
+            pool.lock().unwrap().release_connection(&server_addr, server_stream);
         }
         None => {
             send_error_response(&mut client_stream, "All servers are currently unavailable")?;

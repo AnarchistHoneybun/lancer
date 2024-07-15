@@ -43,8 +43,8 @@ fn handle_connection(mut stream: std::net::TcpStream, server_name: &str) {
     let factor_count = count_factors(number);
 
     let response = format!(
-        "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nHello from {}\nData: {} factors for {}",
-        server_name, factor_count, number
+        "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nHello from {}, your factors are {}",
+        server_name, factor_count,
     );
 
     stream.write(response.as_bytes()).unwrap();

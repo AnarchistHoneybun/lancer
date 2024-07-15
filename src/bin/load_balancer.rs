@@ -24,17 +24,24 @@ impl ConnectionPool {
     fn get_connection(&mut self, server: &str) -> Result<TcpStream, IoError> {
         let connections = self.connections.entry(server.to_string()).or_insert_with(Vec::new);
 
-        // Try to find an available connection
-        for i in 0..connections.len() {
-            if !connections[i].in_use {
-                if Self::check_connection_health(&connections[i].stream) {
-                    connections[i].in_use = true;
-                    return Ok(connections[i].stream.try_clone()?);
-                } else {
-                    // Remove the unhealthy connection
-                    connections.remove(i);
-                    break;
-                }
+        let mut i = 0;
+
+        while i < connections.len() {
+            if connections[i].in_use {
+                i += 1;
+                continue;
+            }
+
+            if Self::check_connection_health(&connections[i].stream) {
+                connections[i].in_use = true;
+
+                return Ok(connections[i].stream.try_clone()?);
+            } else {
+                connections.remove(i);
+
+                // note that we don't do `i += 1` here and we don't `break` - this
+                // way instead of giving up after finding one unhealthy connection,
+                // we check them all and give up only if *no* connection is usable
             }
         }
 

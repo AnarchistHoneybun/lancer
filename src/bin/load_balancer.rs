@@ -54,7 +54,7 @@ impl ConnectionPool {
 
     fn release_connection(&mut self, server: &str, stream: TcpStream) {
         if let Some(connections) = self.connections.get_mut(server) {
-            if let Ok(addr) = stream.peer_addr() {
+            if let Ok(_addr) = stream.peer_addr() {
                 if let Some(connection) = connections.iter_mut().find(|c| {
                     if let PooledConnection::InUse = c {
                         true

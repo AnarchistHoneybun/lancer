@@ -1,3 +1,4 @@
 /target
 .idea
 load_test.sh
+results.csv

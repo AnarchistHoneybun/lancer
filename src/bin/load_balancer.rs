@@ -39,7 +39,7 @@ impl ConnectionPool {
         }
 
         // If no available connection, create a new one
-        let stream = TcpStream::connect_timeout(&server.parse().unwrap(), Duration::from_secs(15))?;
+        let stream = TcpStream::connect_timeout(&server.parse().unwrap(), Duration::from_secs(5))?;
         let cloned_stream = stream.try_clone()?;
         connections.push(PooledConnection { stream, in_use: true });
         Ok(cloned_stream)

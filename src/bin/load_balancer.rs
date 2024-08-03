@@ -5,9 +5,9 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use std::collections::HashMap;
 
-struct PooledConnection {
-    stream: TcpStream,
-    in_use: bool,
+enum PooledConnection {
+    Idle(TcpStream),
+    InUse,
 }
 
 struct ConnectionPool {
@@ -15,6 +15,7 @@ struct ConnectionPool {
 }
 
 impl ConnectionPool {
+
     fn new() -> Self {
         ConnectionPool {
             connections: HashMap::new(),
@@ -24,43 +25,50 @@ impl ConnectionPool {
     fn get_connection(&mut self, server: &str) -> Result<TcpStream, IoError> {
         let connections = self.connections.entry(server.to_string()).or_insert_with(Vec::new);
 
-        // Try to find an available connection
-        for i in 0..connections.len() {
-            if !connections[i].in_use {
-                if Self::check_connection_health(&connections[i].stream) {
-                    connections[i].in_use = true;
-                    return Ok(connections[i].stream.try_clone()?);
+        let mut i = 0;
+
+        while i < connections.len() {
+            if let PooledConnection::Idle(socket) = &mut connections[i] {
+                if Self::check_connection_health(socket) {
+                    let conn = std::mem::replace(&mut connections[i], PooledConnection::InUse);
+
+                    if let PooledConnection::Idle(socket) = conn {
+                        return Ok(socket);
+                    } else {
+                        // This should never happen, but we need to handle it for completeness
+                        unreachable!("Connection state changed unexpectedly");
+                    }
                 } else {
-                    // Remove the unhealthy connection
                     connections.remove(i);
-                    break;
+                    continue;
                 }
             }
+            i += 1;
         }
 
         // If no available connection, create a new one
         let stream = TcpStream::connect_timeout(&server.parse().unwrap(), Duration::from_secs(5))?;
-        let cloned_stream = stream.try_clone()?;
-        connections.push(PooledConnection { stream, in_use: true });
-        Ok(cloned_stream)
+        connections.push(PooledConnection::InUse);
+        Ok(stream)
     }
 
     fn release_connection(&mut self, server: &str, stream: TcpStream) {
         if let Some(connections) = self.connections.get_mut(server) {
-            if let Ok(addr) = stream.peer_addr() {
-                if let Some(connection) = connections.iter_mut().find(|c| c.stream.peer_addr().ok() == Some(addr)) {
-                    connection.in_use = false;
+            if let Ok(_addr) = stream.peer_addr() {
+                if let Some(connection) = connections.iter_mut().find(|c| {
+                    if let PooledConnection::InUse = c {
+                        true
+                    } else {
+                        false
+                    }
+                }) {
+                    *connection = PooledConnection::Idle(stream);
                 }
             }
         }
     }
 
-    fn check_connection_health(stream: &TcpStream) -> bool {
-        let mut stream = match stream.try_clone() {
-            Ok(s) => s,
-            Err(_) => return false,
-        };
-
+    fn check_connection_health(stream: &mut TcpStream) -> bool {
         if stream.set_write_timeout(Some(Duration::from_secs(5))).is_err() {
             return false;
         }
@@ -82,6 +90,7 @@ impl ConnectionPool {
         }
     }
 }
+
 fn main() -> Result<(), IoError> {
     let listener = TcpListener::bind("127.0.0.1:8080")?;
     println!("Load balancer listening on port 8080");

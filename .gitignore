@@ -2,3 +2,5 @@
 .idea
 load_test.sh
 results.csv
+results_test2.csv
+load_test_2.sh
